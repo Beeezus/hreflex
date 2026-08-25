@@ -77,13 +77,20 @@ list(extract_links('<a href="/about">About</a>', "https://example.com/"))
 # ['https://example.com/about']
 ```
 
-Requires a Rust toolchain (`rustup`) and `maturin` to build locally —
-there's no prebuilt wheel yet (deliberately deferred, see `native/`).
-Build with:
+Building from source requires a Rust toolchain (`rustup`) and `maturin`:
 
 ```
 maturin develop --release -m native/Cargo.toml
 ```
+
+CI (`.github/workflows/wheels.yml`) builds real installable wheels for
+Linux (x86_64 + aarch64), macOS (universal2, Intel + Apple Silicon in one
+wheel), and Windows (x64) on every push, using PyO3's `abi3-py310` stable
+ABI so one wheel per platform covers Python 3.10+ instead of one per
+(platform, Python-version) pair — download the artifact from a run and
+`pip install` it directly. Not yet published to PyPI (needs a
+`PYPI_API_TOKEN` secret this repo doesn't have configured — a deliberate
+separate step, not a side effect of building wheels).
 
 `from hreflex import extract_links` (the pure-Python path) is completely
 unaffected by any of this — same function, same behavior, nothing about

@@ -1,0 +1,60 @@
+name: wheels
+
+# Builds real, installable cross-platform wheels for hreflex.native so
+# `pip install` can get a prebuilt binary without a local Rust toolchain.
+# Uses PyO3's abi3-py310 stable ABI (native/Cargo.toml) so one wheel per
+# platform covers Python 3.10+, instead of one per (platform, py-version)
+# pair. Artifacts only -- no PyPI publish here, that needs a PYPI_API_TOKEN
+# secret this repo doesn't have configured, and is a deliberate separate
+# step, not a side effect of building wheels.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-wheels:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64
+          - os: ubuntu-latest
+            target: aarch64
+          - os: macos-latest
+            target: universal2-apple-darwin
+          - os: windows-latest
+            target: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: native
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: native/dist/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: native
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: native/dist/*.tar.gz
