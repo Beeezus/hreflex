@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hreflex"
+version = "0.1.0"
+description = "A no-DOM, single-pass HTML tokenizer that extracts <a href> links, without building a tree."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Vic Zagranowski" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "selectolax",
+    "lxml",
+    "beautifulsoup4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hreflex"]
