@@ -102,3 +102,20 @@ def test_fragment_and_query_preserved():
 def test_self_closing_anchor():
     html_text = '<a href="/x"/><a href="/y">y</a>'
     assert links(html_text) == ["https://example.com/x", "https://example.com/y"]
+
+
+def test_hyphenated_attribute_ending_in_href_is_not_mistaken_for_href():
+    # Regression: `href\s*=` with no boundary guard matched *inside*
+    # `data-original-href=`, extracting the wrong value entirely.
+    html_text = '<a data-original-href="/wrong" href="/right">x</a>'
+    assert links(html_text) == ["https://example.com/right"]
+
+
+def test_camelcase_attribute_ending_in_href_is_not_mistaken_for_href():
+    html_text = '<a originalHref="/wrong" href="/right">x</a>'
+    assert links(html_text) == ["https://example.com/right"]
+
+
+def test_href_suffixed_attribute_with_no_real_href_yields_nothing():
+    html_text = '<a data-original-href="/wrong">x</a>'
+    assert links(html_text) == []

@@ -48,7 +48,7 @@ _RAW_TEXT_CLOSE_RE = {
 _QUOTE_OR_GT = re.compile(r"""[>'"]""")
 
 _HREF_RE = re.compile(
-    r"""href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s'"=<>`]+))""",
+    r"""(?<![A-Za-z0-9_-])href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s'"=<>`]+))""",
     re.IGNORECASE,
 )
 
