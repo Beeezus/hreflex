@@ -6,6 +6,34 @@ without building a tree. Two implementations of the same algorithm:
 `hreflex.native` (Rust/PyO3, 30-90x faster than `selectolax` — see
 Benchmark).
 
+## Where this started and where it ended up
+
+This began as a straight question: for extracting just `<a href>` links,
+can a purpose-built tool beat a general HTML parser? First attempt —
+pure Python, regex-driven, no DOM — said no: **2-3x *slower*** than
+`selectolax`/`lxml.html`, despite doing structurally less work, because
+every tag still cost a Python↔C round trip. That honest negative result
+shipped anyway (`hreflex`), along with the real bug an oracle
+cross-validation against `selectolax` turned up in the process (`href`
+matching false-positive inside `data-original-href`-style attribute
+names — found on live Wikipedia markup, fixed and regression-tested).
+
+Second attempt moved the whole algorithm into Rust (`hreflex.native`):
+SIMD `memchr` scanning instead of backtracking `re`, and *one*
+Python↔Rust crossing per document instead of one per tag. Result,
+independently re-measured to rule out a fluke: **30-90x faster than
+`selectolax`** — 66ms → 0.75ms on a 3.9MB real page, steady-state,
+correct link count every time.
+
+| | vs `selectolax` | on a 3.9MB real page |
+|---|---|---|
+| `hreflex` (pure Python) | ~2-3x **slower** | 213.9ms vs 66.2ms |
+| `hreflex.native` (Rust) | **30-90x faster** | 0.75ms vs 66.2ms |
+
+Full numbers, methodology, and the two genuine findings along the way
+(the `href` boundary-guard bug, and a real spec-level WHATWG-vs-RFC3986
+URL-join divergence between the two backends) are below.
+
 ## Why
 
 General-purpose HTML parsers (`selectolax`, `lxml`, `BeautifulSoup`) all do
