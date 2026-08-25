@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "hreflex-native"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Rust/PyO3 accelerated core for hreflex.native.extract_links"
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+module-name = "_hreflex_native"

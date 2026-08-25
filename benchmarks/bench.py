@@ -16,6 +16,11 @@ from selectolax.parser import HTMLParser
 
 from hreflex import extract_links
 
+try:
+    from hreflex.native import extract_links as extract_links_native
+except ImportError:
+    extract_links_native = None
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 REPS = 7
 
@@ -29,6 +34,10 @@ PAGES = [
 
 def run_hreflex(html_text, base_url):
     return list(extract_links(html_text, base_url))
+
+
+def run_hreflex_native(html_text, base_url):
+    return extract_links_native(html_text, base_url)
 
 
 def run_selectolax(html_text, base_url):
@@ -53,10 +62,13 @@ def run_bs4(html_text, base_url):
 
 LIBRARIES = [
     ("hreflex", run_hreflex),
+    ("hreflex.native", run_hreflex_native),
     ("selectolax", run_selectolax),
     ("lxml.html", run_lxml),
     ("BeautifulSoup", run_bs4),
 ]
+if extract_links_native is None:
+    LIBRARIES = [(name, fn) for name, fn in LIBRARIES if name != "hreflex.native"]
 
 
 def time_one(fn, html_text, base_url):

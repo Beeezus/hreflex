@@ -1,42 +1,61 @@
-"""Every quantifier in the tokenizer's patterns is over a single,
-non-overlapping character class by construction (no `(a+)+`-style nested
-quantifiers), so runtime should stay near-linear even on adversarial input.
-These are hard timeout assertions, not micro-benchmarks: a regression into
-catastrophic backtracking should fail the test suite, not just show up as
-"a bit slower" in a benchmark someone has to notice.
+"""Every quantifier/search primitive in both backends advances the scan
+position monotonically by construction (no rescanning, no backtracking
+over the whole document) -- these are hard timeout assertions on
+adversarial input, not micro-benchmarks. A regression into quadratic
+behavior, in either backend, should fail the test suite outright, the way
+the pure-Python version's first (rejected) design actually did: measured
+0.08s / 2.1s / 8.6s for 1k / 5k / 10k chars before the fix.
+
+Runs against both backends -- see test_conformance.py for the `extract`
+fixture.
 """
 
 import time
 
-from hreflex import extract_links
+import pytest
+
+from hreflex import extract_links as extract_pure
+
+try:
+    from hreflex.native import extract_links as extract_native
+except ImportError:
+    extract_native = None
+
+_BACKENDS = [extract_pure] + ([extract_native] if extract_native else [])
+_BACKEND_IDS = ["pure"] + (["native"] if extract_native else [])
 
 
-def _timed(html_text, base_url="https://example.com/"):
+@pytest.fixture(params=_BACKENDS, ids=_BACKEND_IDS)
+def extract(request):
+    return request.param
+
+
+def _timed(extract, html_text, base_url="https://example.com/"):
     start = time.perf_counter()
-    list(extract_links(html_text, base_url))
+    list(extract(html_text, base_url))
     return time.perf_counter() - start
 
 
-def test_many_unclosed_angle_brackets():
+def test_many_unclosed_angle_brackets(extract):
     html_text = "<a " * 200_000
-    assert _timed(html_text) < 2.0
+    assert _timed(extract, html_text) < 2.0
 
 
-def test_long_unterminated_quote():
+def test_long_unterminated_quote(extract):
     html_text = '<a href="' + ("x" * 2_000_000)
-    assert _timed(html_text) < 2.0
+    assert _timed(extract, html_text) < 2.0
 
 
-def test_many_bare_lt_a_without_gt():
+def test_many_bare_lt_a_without_gt(extract):
     html_text = "<a" * 500_000
-    assert _timed(html_text) < 2.0
+    assert _timed(extract, html_text) < 2.0
 
 
-def test_runtime_scales_roughly_linearly():
+def test_runtime_scales_roughly_linearly(extract):
     small = "<a href=\"/x\">x</a>" * 10_000
     large = "<a href=\"/x\">x</a>" * 100_000
-    t_small = _timed(small)
-    t_large = _timed(large)
+    t_small = _timed(extract, small)
+    t_large = _timed(extract, large)
     # Allow generous slack (constant factors, GC, scheduling noise) --
     # this only needs to catch a genuine superlinear blowup, e.g. >20x
     # runtime for 10x input, not assert a tight ratio.
