@@ -10,5 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
 memchr = "2"
-url = "2"
 html-escape = "0.2"

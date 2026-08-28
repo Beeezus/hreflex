@@ -2,12 +2,13 @@ use pyo3::prelude::*;
 
 mod scan;
 
-/// Yield absolute URLs for every <a href> in html, resolved against
-/// base_url (honoring an in-document <base href>, first one wins).
-/// Same contract as hreflex.extract_links -- see tests/test_parity.py.
+/// Yield the raw `href` value of every `<a href>` in html, in document
+/// order, HTML-entity decoded but otherwise untouched -- no URL
+/// resolution. Same contract as hreflex.extract_links -- see
+/// tests/test_parity.py.
 #[pyfunction]
-fn extract_links(html: &str, base_url: &str) -> Vec<String> {
-    scan::extract_links(html, base_url)
+fn extract_links(html: &str) -> Vec<String> {
+    scan::extract_links(html)
 }
 
 #[pymodule]

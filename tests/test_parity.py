@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from _url_compare import normalize
 from hreflex import extract_links as extract_pure
 
 try:
@@ -37,22 +36,13 @@ _ADVERSARIAL_CASES = [
 
 @pytest.mark.parametrize("html_text", _ADVERSARIAL_CASES)
 def test_backends_agree_on_adversarial_cases(html_text):
-    base_url = "https://example.com/"
-    pure = [normalize(u) for u in extract_pure(html_text, base_url)]
-    native = [normalize(u) for u in extract_native(html_text, base_url)]
-    assert pure == native
+    assert list(extract_pure(html_text)) == list(extract_native(html_text))
 
 
 @pytest.mark.parametrize(
-    "filename,base_url",
-    [
-        ("hackernews.html", "https://news.ycombinator.com/"),
-        ("midnightlabs.html", "https://www.midnightlabs.ai/"),
-        ("wikipedia.html", "https://en.wikipedia.org/wiki/Web_scraping"),
-    ],
+    "filename",
+    ["hackernews.html", "midnightlabs.html", "wikipedia.html"],
 )
-def test_backends_agree_on_real_pages(filename, base_url):
+def test_backends_agree_on_real_pages(filename):
     html_text = (FIXTURES / filename).read_text(encoding="utf-8")
-    pure = [normalize(u) for u in extract_pure(html_text, base_url)]
-    native = [normalize(u) for u in extract_native(html_text, base_url)]
-    assert pure == native
+    assert list(extract_pure(html_text)) == list(extract_native(html_text))

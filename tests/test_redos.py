@@ -30,9 +30,9 @@ def extract(request):
     return request.param
 
 
-def _timed(extract, html_text, base_url="https://example.com/"):
+def _timed(extract, html_text):
     start = time.perf_counter()
-    list(extract(html_text, base_url))
+    list(extract(html_text))
     return time.perf_counter() - start
 
 

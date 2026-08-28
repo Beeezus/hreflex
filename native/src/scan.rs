@@ -13,7 +13,6 @@
 //! Python version was measured to hit before that rule was enforced.
 
 use memchr::{memchr, memchr3};
-use url::Url;
 
 const RAW_TEXT_TAGS: [&str; 4] = ["script", "style", "textarea", "title"];
 
@@ -21,7 +20,6 @@ enum Opener {
     Comment(usize),
     Cdata(usize),
     RawText(&'static str, usize),
-    Base(usize),
     Anchor(usize),
 }
 
@@ -69,12 +67,6 @@ fn find_opener(bytes: &[u8], from: usize) -> Option<Opener> {
                     matched = Some(Opener::RawText(tag, after));
                     break;
                 }
-            }
-        }
-        if matched.is_none() && matches_ci(bytes, start + 1, b"base") {
-            let after = start + 1 + 4;
-            if !(after < len && is_tag_name_byte(bytes[after])) {
-                matched = Some(Opener::Base(after));
             }
         }
         if matched.is_none() && matches_ci(bytes, start + 1, b"a") {
@@ -191,14 +183,8 @@ fn extract_href(tag_body: &str) -> Option<&str> {
     None
 }
 
-pub fn extract_links(html: &str, base_url: &str) -> Vec<String> {
+pub fn extract_links(html: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let base = match Url::parse(base_url) {
-        Ok(u) => u,
-        Err(_) => return out,
-    };
-    let mut effective_base = base;
-    let mut base_seen = false;
 
     let bytes = html.as_bytes();
     let len = bytes.len();
@@ -229,22 +215,6 @@ pub fn extract_links(html: &str, base_url: &str) -> Vec<String> {
                     None => break,
                 }
             }
-            Opener::Base(attrs_start) => {
-                let tag_end = match find_tag_end(bytes, attrs_start) {
-                    Some(i) => i,
-                    None => break,
-                };
-                if !base_seen {
-                    if let Some(href) = extract_href(&html[attrs_start..tag_end]) {
-                        let decoded = html_escape::decode_html_entities(href);
-                        if let Ok(joined) = effective_base.join(decoded.as_ref()) {
-                            effective_base = joined;
-                        }
-                    }
-                    base_seen = true;
-                }
-                pos = tag_end + 1;
-            }
             Opener::Anchor(attrs_start) => {
                 let tag_end = match find_tag_end(bytes, attrs_start) {
                     Some(i) => i,
@@ -252,9 +222,7 @@ pub fn extract_links(html: &str, base_url: &str) -> Vec<String> {
                 };
                 if let Some(href) = extract_href(&html[attrs_start..tag_end]) {
                     let decoded = html_escape::decode_html_entities(href);
-                    if let Ok(joined) = effective_base.join(decoded.as_ref()) {
-                        out.push(joined.into());
-                    }
+                    out.push(decoded.into_owned());
                 }
                 pos = tag_end + 1;
             }
@@ -273,54 +241,45 @@ mod tests {
     use super::extract_links;
     use std::time::Instant;
 
-    const BASE: &str = "https://example.com/";
-
     #[test]
     fn basic_and_quoting_styles() {
         let html = r#"<a href="/dq">x</a><a href='/sq'>x</a><a href=/bare>x</a>"#;
-        assert_eq!(
-            extract_links(html, BASE),
-            vec![
-                "https://example.com/dq",
-                "https://example.com/sq",
-                "https://example.com/bare",
-            ]
-        );
+        assert_eq!(extract_links(html), vec!["/dq", "/sq", "/bare"]);
     }
 
     #[test]
     fn href_inside_script_is_not_extracted() {
         let html = r#"<script>var s = "<a href=\"/evil\">";</script><a href="/real">x</a>"#;
-        assert_eq!(extract_links(html, BASE), vec!["https://example.com/real"]);
+        assert_eq!(extract_links(html), vec!["/real"]);
     }
 
     #[test]
     fn unterminated_script_consumes_to_eof() {
         let html = r#"<script>var x = "<a href=\"/evil\">""#;
-        assert!(extract_links(html, BASE).is_empty());
+        assert!(extract_links(html).is_empty());
     }
 
     #[test]
-    fn base_href_changes_resolution_base_first_wins() {
-        let html = concat!(
-            r#"<base href="https://first.example.com/">"#,
-            r#"<base href="https://second.example.com/">"#,
-            r#"<a href="x">x</a>"#,
-        );
-        assert_eq!(extract_links(html, BASE), vec!["https://first.example.com/x"]);
+    fn base_tag_is_inert_plain_data() {
+        // <base> is no longer special-cased -- no resolution happens, so
+        // there is nothing for a <base href> to change. It should be
+        // skipped like any other non-<a> tag, with no effect on the <a>
+        // that follows.
+        let html = r#"<base href="https://example.com/"><a href="x">x</a>"#;
+        assert_eq!(extract_links(html), vec!["x"]);
     }
 
     #[test]
     fn href_boundary_guard_rejects_hyphenated_attribute() {
         let html = r#"<a data-original-href="/wrong" href="/right">x</a>"#;
-        assert_eq!(extract_links(html, BASE), vec!["https://example.com/right"]);
+        assert_eq!(extract_links(html), vec!["/right"]);
     }
 
     #[test]
     fn adversarial_no_closing_angle_bracket_stays_linear() {
         let html = "<a ".repeat(200_000);
         let start = Instant::now();
-        assert!(extract_links(&html, BASE).is_empty());
+        assert!(extract_links(&html).is_empty());
         assert!(start.elapsed().as_secs_f64() < 1.0);
     }
 }

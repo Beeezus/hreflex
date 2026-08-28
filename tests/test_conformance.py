@@ -27,13 +27,13 @@ def extract(request):
     return request.param
 
 
-def links(extract, html_text, base_url="https://example.com/"):
-    return list(extract(html_text, base_url))
+def links(extract, html_text):
+    return list(extract(html_text))
 
 
 def test_basic_relative_and_absolute(extract):
     html_text = '<a href="/a">A</a><a href="https://other.com/b">B</a>'
-    assert links(extract, html_text) == ["https://example.com/a", "https://other.com/b"]
+    assert links(extract, html_text) == ["/a", "https://other.com/b"]
 
 
 def test_all_three_quoting_styles(extract):
@@ -42,31 +42,27 @@ def test_all_three_quoting_styles(extract):
         "<a href='/sq'>x</a>"
         "<a href=/bare>x</a>"
     )
-    assert links(extract, html_text) == [
-        "https://example.com/dq",
-        "https://example.com/sq",
-        "https://example.com/bare",
-    ]
+    assert links(extract, html_text) == ["/dq", "/sq", "/bare"]
 
 
 def test_mixed_case_tag_and_attribute(extract):
     html_text = '<A HrEf="/x">x</A>'
-    assert links(extract, html_text) == ["https://example.com/x"]
+    assert links(extract, html_text) == ["/x"]
 
 
 def test_entity_decoded_href(extract):
     html_text = '<a href="/search?a=1&amp;b=2">x</a>'
-    assert links(extract, html_text) == ["https://example.com/search?a=1&b=2"]
+    assert links(extract, html_text) == ["/search?a=1&b=2"]
 
 
 def test_quoted_gt_inside_attribute_does_not_truncate_tag(extract):
     html_text = '<a title="a > b" href="/x">x</a>'
-    assert links(extract, html_text) == ["https://example.com/x"]
+    assert links(extract, html_text) == ["/x"]
 
 
 def test_href_inside_script_is_not_extracted(extract):
     html_text = '<script>var s = "<a href=\\"/evil\\">";</script><a href="/real">x</a>'
-    assert links(extract, html_text) == ["https://example.com/real"]
+    assert links(extract, html_text) == ["/real"]
 
 
 def test_href_inside_style_and_comment_and_title_not_extracted(extract):
@@ -76,7 +72,7 @@ def test_href_inside_style_and_comment_and_title_not_extracted(extract):
         '<title>&lt;a href="/title"&gt;</title>'
         '<a href="/real">x</a>'
     )
-    assert links(extract, html_text) == ["https://example.com/real"]
+    assert links(extract, html_text) == ["/real"]
 
 
 def test_unterminated_script_consumes_to_end_of_document(extract):
@@ -87,53 +83,47 @@ def test_unterminated_script_consumes_to_end_of_document(extract):
 def test_raw_text_tags_do_not_nest(extract):
     # Per WHATWG spec, the first </script> ends the element, full stop.
     html_text = '<script>a</script>b</script><a href="/real">x</a>'
-    assert links(extract, html_text) == ["https://example.com/real"]
+    assert links(extract, html_text) == ["/real"]
 
 
-def test_base_href_changes_resolution_base(extract):
+def test_base_tag_is_inert_plain_data(extract):
+    # <base> is no longer special-cased -- no URL resolution happens here
+    # at all, so there is nothing for a <base href> to change. It should
+    # be skipped like any other non-<a> tag.
     html_text = '<base href="https://cdn.example.com/assets/"><a href="img.png">x</a>'
-    assert links(extract, html_text) == ["https://cdn.example.com/assets/img.png"]
-
-
-def test_only_first_base_href_counts(extract):
-    html_text = (
-        '<base href="https://first.example.com/">'
-        '<base href="https://second.example.com/">'
-        '<a href="x">x</a>'
-    )
-    assert links(extract, html_text) == ["https://first.example.com/x"]
+    assert links(extract, html_text) == ["img.png"]
 
 
 def test_illegally_nested_a_tags_do_not_crash(extract):
     html_text = '<a href="/outer"><a href="/inner">x</a></a>'
-    assert links(extract, html_text) == ["https://example.com/outer", "https://example.com/inner"]
+    assert links(extract, html_text) == ["/outer", "/inner"]
 
 
 def test_a_tag_without_href_is_skipped(extract):
     html_text = '<a name="anchor">x</a><a href="/real">y</a>'
-    assert links(extract, html_text) == ["https://example.com/real"]
+    assert links(extract, html_text) == ["/real"]
 
 
 def test_fragment_and_query_preserved(extract):
     html_text = '<a href="/x?a=1#frag">x</a>'
-    assert links(extract, html_text) == ["https://example.com/x?a=1#frag"]
+    assert links(extract, html_text) == ["/x?a=1#frag"]
 
 
 def test_self_closing_anchor(extract):
     html_text = '<a href="/x"/><a href="/y">y</a>'
-    assert links(extract, html_text) == ["https://example.com/x", "https://example.com/y"]
+    assert links(extract, html_text) == ["/x", "/y"]
 
 
 def test_hyphenated_attribute_ending_in_href_is_not_mistaken_for_href(extract):
     # Regression: `href\s*=` with no boundary guard matched *inside*
     # `data-original-href=`, extracting the wrong value entirely.
     html_text = '<a data-original-href="/wrong" href="/right">x</a>'
-    assert links(extract, html_text) == ["https://example.com/right"]
+    assert links(extract, html_text) == ["/right"]
 
 
 def test_camelcase_attribute_ending_in_href_is_not_mistaken_for_href(extract):
     html_text = '<a originalHref="/wrong" href="/right">x</a>'
-    assert links(extract, html_text) == ["https://example.com/right"]
+    assert links(extract, html_text) == ["/right"]
 
 
 def test_href_suffixed_attribute_with_no_real_href_yields_nothing(extract):
